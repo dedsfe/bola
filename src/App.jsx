@@ -15,50 +15,168 @@ import {
   User,
   Star,
   Check,
+  Calendar,
   AlertCircle
 } from 'lucide-react'
 import './App.css'
+import worldCupData from './assets/worldcup2026.json'
 
-// Initial data based on user request
-const INITIAL_PARTICIPANTS = ['Keila', 'André', 'Luque', 'LJ', 'Sara', 'Matheus', 'Gi', 'Dany']
+// Dictionary to translate country names to Portuguese
+const TEAM_TRANSLATIONS = {
+  'Mexico': 'México',
+  'South Africa': 'África do Sul',
+  'South Korea': 'Coreia do Sul',
+  'Czech Republic': 'República Tcheca',
+  'Canada': 'Canadá',
+  'Bosnia and Herzegovina': 'Bósnia e Herzegovina',
+  'Bosnia & Herzegovina': 'Bósnia e Herzegovina',
+  'Qatar': 'Catar',
+  'Switzerland': 'Suíça',
+  'Brazil': 'Brasil',
+  'Morocco': 'Marrocos',
+  'Haiti': 'Haiti',
+  'Scotland': 'Escócia',
+  'USA': 'EUA',
+  'Paraguay': 'Paraguai',
+  'Australia': 'Austrália',
+  'Turkey': 'Turquia',
+  'Germany': 'Alemanha',
+  'Curaçao': 'Curaçao',
+  'Ivory Coast': 'Costa do Marfim',
+  'Ecuador': 'Equador',
+  'Netherlands': 'Holanda',
+  'Japan': 'Japão',
+  'Sweden': 'Suécia',
+  'Tunisia': 'Tunísia',
+  'Belgium': 'Bélgica',
+  'Egypt': 'Egito',
+  'Iran': 'Irã',
+  'New Zealand': 'Nova Zelândia',
+  'Spain': 'Espanha',
+  'Cape Verde': 'Cabo Verde',
+  'Saudi Arabia': 'Arábia Saudita',
+  'Uruguay': 'Uruguai',
+  'France': 'França',
+  'Senegal': 'Senegal',
+  'Iraq': 'Iraque',
+  'Norway': 'Noruega',
+  'Argentina': 'Argentina',
+  'Algeria': 'Argélia',
+  'Austria': 'Áustria',
+  'Jordan': 'Jordânia',
+  'Portugal': 'Portugal',
+  'DR Congo': 'RD Congo',
+  'Uzbekistan': 'Uzbequistão',
+  'Colombia': 'Colômbia',
+  'England': 'Inglaterra',
+  'Croatia': 'Croácia',
+  'Panama': 'Panamá',
+  'Ghana': 'Gana'
+}
 
-const DEFAULT_MATCHES = [
-  {
-    id: '1',
-    homeTeam: 'EUA',
-    awayTeam: 'Paraguai',
-    homeFlag: '🇺🇸',
-    awayFlag: '🇵🇾',
-    homeScore: 4,
-    awayScore: 1,
-    status: 'finished',
-    guesses: {
+// Flags mapped to emojis
+const TEAM_FLAGS = {
+  'Mexico': '🇲🇽',
+  'South Africa': '🇿🇦',
+  'South Korea': '🇰🇷',
+  'Czech Republic': '🇨🇿',
+  'Canada': '🇨🇦',
+  'Bosnia and Herzegovina': '🇧🇦',
+  'Bosnia & Herzegovina': '🇧🇦',
+  'Qatar': '🇶🇦',
+  'Switzerland': '🇨🇭',
+  'Brazil': '🇧🇷',
+  'Morocco': '🇲🇦',
+  'Haiti': '🇭🇹',
+  'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  'USA': '🇺🇸',
+  'Paraguay': '🇵🇾',
+  'Australia': '🇦🇺',
+  'Turkey': '🇹🇷',
+  'Germany': '🇩🇪',
+  'Curaçao': '🇨🇼',
+  'Ivory Coast': '🇨🇮',
+  'Ecuador': '🇪🇨',
+  'Netherlands': '🇳🇱',
+  'Japan': '🇯🇵',
+  'Sweden': '🇸🇪',
+  'Tunisia': '🇹🇳',
+  'Belgium': '🇧🇪',
+  'Egypt': '🇪🇬',
+  'Iran': '🇮🇷',
+  'New Zealand': '🇳🇿',
+  'Spain': '🇪🇸',
+  'Cape Verde': '🇨🇻',
+  'Saudi Arabia': '🇸🇦',
+  'Uruguay': '🇺🇾',
+  'France': '🇫🇷',
+  'Senegal': '🇸🇳',
+  'Iraq': '🇮🇶',
+  'Norway': '🇳🇴',
+  'Argentina': '🇦🇷',
+  'Algeria': '🇩🇿',
+  'Austria': '🇦🇹',
+  'Jordan': '🇯🇴',
+  'Portugal': '🇵🇹',
+  'DR Congo': '🇨🇩',
+  'Uzbekistan': '🇺🇿',
+  'Colombia': '🇨🇴',
+  'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  'Croatia': '🇭🇷',
+  'Panama': '🇵🇦',
+  'Ghana': '🇬🇭'
+}
+
+// Map the raw JSON to our Bolão schema
+const DEFAULT_MATCHES = worldCupData.matches.map((m, index) => {
+  const homeTeam = TEAM_TRANSLATIONS[m.team1] || m.team1
+  const awayTeam = TEAM_TRANSLATIONS[m.team2] || m.team2
+  const homeFlag = TEAM_FLAGS[m.team1] || '⚽'
+  const awayFlag = TEAM_FLAGS[m.team2] || '⚽'
+
+  const hasScore = m.score && m.score.ft
+  const homeScore = hasScore ? m.score.ft[0] : null
+  const awayScore = hasScore ? m.score.ft[1] : null
+  const status = hasScore ? 'finished' : 'pending'
+
+  // Preserving user requested guesses
+  let guesses = {}
+  if (m.team1 === 'USA' && m.team2 === 'Paraguay') {
+    guesses = {
       'Keila': { homeScore: 2, awayScore: 1 },
       'André': { homeScore: 1, awayScore: 2 },
       'Luque': { homeScore: 1, awayScore: 2 },
       'LJ': { homeScore: 1, awayScore: 1 },
       'Sara': { homeScore: 3, awayScore: 2 }
     }
-  },
-  {
-    id: '2',
-    homeTeam: 'Catar',
-    awayTeam: 'Suiça',
-    homeFlag: '🇶🇦',
-    awayFlag: '🇨🇭',
-    homeScore: null,
-    awayScore: null,
-    status: 'pending',
-    guesses: {
+  } else if (m.team1 === 'Qatar' && m.team2 === 'Switzerland') {
+    guesses = {
       'André': { homeScore: 0, awayScore: 2 },
       'Matheus': { homeScore: 0, awayScore: 2 },
       'Gi': { homeScore: 0, awayScore: 1 }
     }
   }
-]
+
+  return {
+    id: String(index + 1),
+    homeTeam,
+    awayTeam,
+    homeFlag,
+    awayFlag,
+    homeScore,
+    awayScore,
+    status,
+    date: m.date,
+    group: m.group || '',
+    round: m.round || '',
+    guesses
+  }
+})
+
+const INITIAL_PARTICIPANTS = ['Keila', 'André', 'Luque', 'LJ', 'Sara', 'Matheus', 'Gi', 'Dany']
 
 function App() {
-  // Load data from LocalStorage or use defaults
+  // Load settings
   const [participants, setParticipants] = useState(() => {
     const saved = localStorage.getItem('bolao_participants')
     return saved ? JSON.parse(saved) : INITIAL_PARTICIPANTS
@@ -66,10 +184,24 @@ function App() {
 
   const [matches, setMatches] = useState(() => {
     const saved = localStorage.getItem('bolao_matches')
-    return saved ? JSON.parse(saved) : DEFAULT_MATCHES
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      // Migration check: upgrade from old 2-match setup to the full 104-match setup
+      if (parsed.length < 10) {
+        return DEFAULT_MATCHES
+      }
+      return parsed
+    }
+    return DEFAULT_MATCHES
+  })
+
+  const [ignoreDateLock, setIgnoreDateLock] = useState(() => {
+    const saved = localStorage.getItem('bolao_ignore_date_lock')
+    return saved ? saved === 'true' : false
   })
 
   const [activeTab, setActiveTab] = useState('ranking') // 'ranking' | 'matches' | 'admin'
+  const [matchFilter, setMatchFilter] = useState('today') // 'today' | 'pending' | 'finished' | 'all'
   const [expandedMatches, setExpandedMatches] = useState({ '1': true, '2': true })
 
   // Modals state
@@ -84,7 +216,8 @@ function App() {
     awayTeam: '',
     homeFlag: '🇧🇷',
     awayFlag: '🇦🇷',
-    status: 'pending'
+    status: 'pending',
+    date: new Date().toLocaleDateString('en-CA')
   })
   const [newParticipantName, setNewParticipantName] = useState('')
   const [newGuessData, setNewGuessData] = useState({
@@ -93,7 +226,18 @@ function App() {
     awayScore: 0
   })
 
-  // Save to LocalStorage whenever state changes
+  // Date constants
+  const todayStr = new Date().toLocaleDateString('en-CA')
+
+  // Auto-switch default filter on mount if no games today
+  useEffect(() => {
+    const hasMatchesToday = matches.some(m => m.date === todayStr)
+    if (!hasMatchesToday) {
+      setMatchFilter('pending')
+    }
+  }, [])
+
+  // Save changes
   useEffect(() => {
     localStorage.setItem('bolao_participants', JSON.stringify(participants))
   }, [participants])
@@ -102,7 +246,23 @@ function App() {
     localStorage.setItem('bolao_matches', JSON.stringify(matches))
   }, [matches])
 
-  // Helper to toggle match guess details
+  useEffect(() => {
+    localStorage.setItem('bolao_ignore_date_lock', String(ignoreDateLock))
+  }, [ignoreDateLock])
+
+  // Helper date status
+  const getMatchDateStatus = (matchDate) => {
+    if (matchDate === todayStr) return 'open_today'
+    if (matchDate > todayStr) return 'future'
+    return 'past'
+  }
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    const [year, month, day] = dateStr.split('-')
+    return `${day}/${month}/${year}`
+  }
+
   const toggleExpand = (matchId) => {
     setExpandedMatches(prev => ({
       ...prev,
@@ -110,7 +270,7 @@ function App() {
     }))
   }
 
-  // Points calculation logic
+  // Scoring logic
   const getGuessPoints = (guess, match) => {
     if (match.status !== 'finished' || match.homeScore === null || match.awayScore === null) {
       return { points: 0, type: 'none' }
@@ -121,16 +281,13 @@ function App() {
     const guessHome = Number(guess.homeScore)
     const guessAway = Number(guess.awayScore)
 
-    // Exact match: 3 points
     if (guessHome === matchHome && guessAway === matchAway) {
       return { points: 3, type: 'exact' }
     }
 
-    // Outcome calculation
     const matchOutcome = matchHome > matchAway ? 'home' : (matchHome < matchAway ? 'away' : 'draw')
     const guessOutcome = guessHome > guessAway ? 'home' : (guessHome < guessAway ? 'away' : 'draw')
 
-    // Correct winner/draw: 1 point
     if (matchOutcome === guessOutcome) {
       return { points: 1, type: 'outcome' }
     }
@@ -138,7 +295,7 @@ function App() {
     return { points: 0, type: 'miss' }
   }
 
-  // Calculate scores per participant
+  // Calculate Leaderboard
   const leaderboard = participants.map(name => {
     let totalPoints = 0
     let exactCount = 0
@@ -172,11 +329,13 @@ function App() {
 
   // Handlers
   const handleResetData = () => {
-    if (window.confirm('Tem certeza que deseja resetar os dados para o padrão inicial?')) {
+    if (window.confirm('Tem certeza que deseja resetar os dados do bolão? Todos os palpites e placares criados serão excluídos.')) {
       setParticipants(INITIAL_PARTICIPANTS)
       setMatches(DEFAULT_MATCHES)
+      setIgnoreDateLock(false)
       localStorage.removeItem('bolao_participants')
       localStorage.removeItem('bolao_matches')
+      localStorage.removeItem('bolao_ignore_date_lock')
       alert('Dados resetados com sucesso!')
     }
   }
@@ -191,7 +350,7 @@ function App() {
   const handleCreateMatch = (e) => {
     e.preventDefault()
     if (!newMatchData.homeTeam || !newMatchData.awayTeam) {
-      alert('Por favor, preencha os nomes das seleções.')
+      alert('Por favor, preencha o nome dos times.')
       return
     }
 
@@ -204,22 +363,26 @@ function App() {
       homeScore: newMatchData.status === 'finished' ? 0 : null,
       awayScore: newMatchData.status === 'finished' ? 0 : null,
       status: newMatchData.status,
+      date: newMatchData.date,
+      group: 'Personalizado',
+      round: 'Personalizado',
       guesses: {}
     }
 
-    setMatches(prev => [...prev, newMatch])
+    setMatches(prev => [newMatch, ...prev])
     setNewMatchData({
       homeTeam: '',
       awayTeam: '',
       homeFlag: '🇧🇷',
       awayFlag: '🇦🇷',
-      status: 'pending'
+      status: 'pending',
+      date: todayStr
     })
     setAddingMatch(false)
   }
 
   const handleDeleteMatch = (matchId) => {
-    if (window.confirm('Deseja excluir esta partida permanentemente? Todos os palpites dela serão apagados.')) {
+    if (window.confirm('Deseja excluir esta partida permanentemente? Todos os palpites serão perdidos.')) {
       setMatches(prev => prev.filter(m => m.id !== matchId))
     }
   }
@@ -243,7 +406,6 @@ function App() {
   const handleDeleteParticipant = (name) => {
     if (window.confirm(`Deseja remover ${name} do bolão? Os palpites serão perdidos.`)) {
       setParticipants(prev => prev.filter(p => p !== name))
-      // Remove their guesses from all matches
       setMatches(prev => prev.map(m => {
         const nextGuesses = { ...m.guesses }
         delete nextGuesses[name]
@@ -293,6 +455,20 @@ function App() {
     }
   }
 
+  // Filtering matches
+  const filteredMatches = matches.filter(m => {
+    if (matchFilter === 'today') return m.date === todayStr
+    if (matchFilter === 'pending') return m.status === 'pending'
+    if (matchFilter === 'finished') return m.status === 'finished'
+    return true
+  })
+
+  // Filter counts
+  const countToday = matches.filter(m => m.date === todayStr).length
+  const countPending = matches.filter(m => m.status === 'pending').length
+  const countFinished = matches.filter(m => m.status === 'finished').length
+  const countAll = matches.length
+
   return (
     <>
       {/* Header */}
@@ -303,7 +479,7 @@ function App() {
           </div>
           <h1 className="app-title">Bolão da Família</h1>
         </div>
-        <p className="app-subtitle">Campeonato familiar de palpites • 2026</p>
+        <p className="app-subtitle">Copa do Mundo de 2026 • Família Unida</p>
       </header>
 
       {/* Tabs */}
@@ -324,13 +500,23 @@ function App() {
         </button>
       </div>
 
+      {/* Alert about Date Lock Restriction */}
+      {!ignoreDateLock && activeTab === 'matches' && (
+        <div className="info-pill" style={{ margin: '0 0 16px 0', padding: '10px 14px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.2)', width: '100%', color: 'var(--text-primary)', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+          <AlertCircle size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }} />
+          <span style={{ fontSize: '0.78rem', lineHeight: '1.4' }}>
+            <strong>Trava de Data Ativa:</strong> Você só pode palpitar nos jogos que acontecem <strong>hoje ({formatDate(todayStr)})</strong>. Para liberar retroativos, acerte nas configurações.
+          </span>
+        </div>
+      )}
+
       {/* Main Tab Content */}
       <main>
         {activeTab === 'ranking' && (
           <div className="glass-card">
             <h2 className="section-title">
               <Trophy size={20} style={{ color: 'var(--color-warning)' }} />
-              Classificação
+              Classificação Geral
             </h2>
 
             <div className="leaderboard-list">
@@ -389,7 +575,7 @@ function App() {
                 onClick={() => setActiveTab('admin')}
                 style={{ flex: 1 }}
               >
-                Configurações
+                Ajustes do App
               </button>
             </div>
           </div>
@@ -397,10 +583,38 @@ function App() {
 
         {activeTab === 'matches' && (
           <div>
+            {/* Horizontal Filter Chips */}
+            <div className="filter-tabs">
+              <button 
+                className={`filter-chip ${matchFilter === 'today' ? 'active' : ''}`}
+                onClick={() => setMatchFilter('today')}
+              >
+                Hoje ({countToday})
+              </button>
+              <button 
+                className={`filter-chip ${matchFilter === 'pending' ? 'active' : ''}`}
+                onClick={() => setMatchFilter('pending')}
+              >
+                Em aberto ({countPending})
+              </button>
+              <button 
+                className={`filter-chip ${matchFilter === 'finished' ? 'active' : ''}`}
+                onClick={() => setMatchFilter('finished')}
+              >
+                Finalizados ({countFinished})
+              </button>
+              <button 
+                className={`filter-chip ${matchFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setMatchFilter('all')}
+              >
+                Todos ({countAll})
+              </button>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Gamepad2 size={20} style={{ color: 'var(--color-primary)' }} />
-                Partidas & Palpites
+              <h2 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Gamepad2 size={18} style={{ color: 'var(--color-primary)' }} />
+                Lista de Partidas
               </h2>
               <button 
                 className="btn btn-primary btn-sm" 
@@ -412,34 +626,58 @@ function App() {
               </button>
             </div>
 
-            {matches.map(match => {
+            {filteredMatches.map(match => {
               const isFinished = match.status === 'finished'
               const guessCount = Object.keys(match.guesses).length
+              const dateStatus = getMatchDateStatus(match.date)
+              const isGuessLocked = !isFinished && !ignoreDateLock && dateStatus !== 'open_today'
 
               return (
                 <div key={match.id} className="glass-card match-card">
                   <div className="match-header">
-                    <span className={`match-status-badge ${match.status}`}>
-                      {isFinished ? (
-                        <>
-                          <Lock size={12} />
-                          Finalizado
-                        </>
-                      ) : (
-                        <>
-                          <Unlock size={12} />
-                          Aberto para Palpites
-                        </>
-                      )}
-                    </span>
+                    {isFinished ? (
+                      <span className="match-status-badge finished">
+                        <Lock size={12} /> Finalizado
+                      </span>
+                    ) : (() => {
+                      if (ignoreDateLock) {
+                        return (
+                          <span className="match-status-badge pending" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--color-warning)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+                            <Unlock size={12} /> Liberado (Admin)
+                          </span>
+                        )
+                      }
+                      if (dateStatus === 'open_today') {
+                        return (
+                          <span className="match-status-badge pending" style={{ background: 'rgba(16, 185, 129, 0.12)', color: 'var(--color-accent)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                            <Unlock size={12} /> Aberto (Hoje!)
+                          </span>
+                        )
+                      } else if (dateStatus === 'future') {
+                        return (
+                          <span className="match-status-badge pending" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', borderColor: 'rgba(255, 255, 255, 0.05)' }}>
+                            <Lock size={12} /> Bloqueado até {formatDate(match.date)}
+                          </span>
+                        )
+                      } else {
+                        return (
+                          <span className="match-status-badge pending" style={{ background: 'rgba(239, 68, 68, 0.12)', color: 'var(--color-danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+                            <Lock size={12} /> Encerrado ({formatDate(match.date)})
+                          </span>
+                        )
+                      }
+                    })()}
                     
                     <div className="match-actions">
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginRight: '4px' }}>
+                        {match.group} {match.group && '•'} {formatDate(match.date)}
+                      </span>
                       <button
                         className="match-action-btn"
                         onClick={() => setEditingMatch({ ...match })}
                         title="Editar resultado do jogo"
                       >
-                        <Edit2 size={14} />
+                        <Edit2 size={13} />
                       </button>
                       <button
                         className="match-action-btn"
@@ -447,7 +685,7 @@ function App() {
                         title="Deletar partida"
                         style={{ color: 'rgba(239, 68, 68, 0.7)' }}
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </div>
@@ -455,7 +693,7 @@ function App() {
                   <div className="match-board">
                     <div className="team-display">
                       <span className="team-flag">{match.homeFlag}</span>
-                      <span className="team-name">{match.homeTeam}</span>
+                      <span className="team-name" title={match.homeTeam}>{match.homeTeam}</span>
                     </div>
 
                     <div className="score-display">
@@ -470,13 +708,13 @@ function App() {
 
                     <div className="team-display">
                       <span className="team-flag">{match.awayFlag}</span>
-                      <span className="team-name">{match.awayTeam}</span>
+                      <span className="team-name" title={match.awayTeam}>{match.awayTeam}</span>
                     </div>
                   </div>
 
                   <div className="guesses-collapsible">
                     <div className="guesses-header" onClick={() => toggleExpand(match.id)}>
-                      <span>Palpites da Família ({guessCount})</span>
+                      <span>Palpites enviados ({guessCount})</span>
                       {expandedMatches[match.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </div>
 
@@ -516,17 +754,24 @@ function App() {
                           </div>
                         )}
 
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => {
-                            setNewGuessData({ name: participants[0] || '', homeScore: 0, awayScore: 0 })
-                            setAddingGuess({ matchId: match.id })
-                          }}
-                          style={{ marginTop: '6px' }}
-                        >
-                          <Plus size={12} />
-                          Enviar Palpite
-                        </button>
+                        {/* Button or Locked Message */}
+                        {isFinished ? null : isGuessLocked ? (
+                          <div style={{ textAlign: 'center', padding: '10px 4px', fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'rgba(255, 255, 255, 0.01)', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.03)' }}>
+                            <Lock size={11} /> Palpites bloqueados. Disponível apenas em {formatDate(match.date)}.
+                          </div>
+                        ) : (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => {
+                              setNewGuessData({ name: participants[0] || '', homeScore: 0, awayScore: 0 })
+                              setAddingGuess({ matchId: match.id })
+                            }}
+                            style={{ marginTop: '6px' }}
+                          >
+                            <Plus size={12} />
+                            Enviar Palpite
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -534,17 +779,10 @@ function App() {
               )
             })}
 
-            {matches.length === 0 && (
+            {filteredMatches.length === 0 && (
               <div className="glass-card empty-state">
                 <Gamepad2 size={40} />
-                <p>Nenhuma partida cadastrada.</p>
-                <button 
-                  className="btn btn-primary btn-sm" 
-                  onClick={() => setAddingMatch(true)}
-                  style={{ width: 'auto', margin: '12px auto 0 auto' }}
-                >
-                  Criar Jogo
-                </button>
+                <p>Nenhuma partida encontrada nesta categoria.</p>
               </div>
             )}
           </div>
@@ -554,7 +792,7 @@ function App() {
           <div className="glass-card">
             <h2 className="section-title">
               <RefreshCw size={20} style={{ color: 'var(--color-secondary)' }} />
-              Configurações
+              Ajustes do Sistema
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -573,6 +811,24 @@ function App() {
                     <span>✗ Erro completo</span>
                     <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>0 pontos</span>
                   </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '1rem', marginBottom: '8px' }}>Configurações de Segurança</h3>
+                <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255, 255, 255, 0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '80%' }}>
+                    <label style={{ margin: 0, fontSize: '0.85rem' }}>Ignorar Trava de Data</label>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: '0' }}>
+                      Permite enviar palpites para qualquer jogo (mesmo no passado ou no futuro) de forma manual.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={ignoreDateLock}
+                    onChange={e => setIgnoreDateLock(e.target.checked)}
+                    style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
+                  />
                 </div>
               </div>
 
@@ -599,7 +855,7 @@ function App() {
                   Resetar Todos os Dados
                 </button>
                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
-                  Aviso: Isso apagará todas as edições e palpites customizados, voltando para os dados iniciais do bolão.
+                  Aviso: Isso apagará todas as suas edições, novos jogos criados e novos palpites, voltando para os dados padrão da Copa 2026.
                 </p>
               </div>
             </div>
@@ -718,7 +974,6 @@ function App() {
                   onChange={e => setEditingMatch(prev => ({
                     ...prev,
                     status: e.target.value,
-                    // If moving back to pending, nullify score
                     homeScore: e.target.value === 'pending' ? null : (prev.homeScore !== null ? prev.homeScore : 0),
                     awayScore: e.target.value === 'pending' ? null : (prev.awayScore !== null ? prev.awayScore : 0)
                   }))}
@@ -797,6 +1052,17 @@ function App() {
                     maxLength={2}
                   />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label>Data da Partida</label>
+                <input
+                  type="date"
+                  className="input-glass"
+                  value={newMatchData.date}
+                  onChange={e => setNewMatchData(prev => ({ ...prev, date: e.target.value }))}
+                  required
+                />
               </div>
 
               <div className="form-group">
