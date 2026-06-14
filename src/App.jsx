@@ -177,18 +177,47 @@ const DEFAULT_MATCHES = worldCupData.matches.map((m, index) => {
 const INITIAL_PARTICIPANTS = ['Keila', 'André', 'Luque', 'LJ', 'Sara', 'Matheus', 'Gi', 'Dany']
 
 function App() {
-  // Load settings
+  // Load settings and merge cleanly
   const [participants, setParticipants] = useState(() => {
     const saved = localStorage.getItem('bolao_participants')
-    return saved ? JSON.parse(saved) : INITIAL_PARTICIPANTS
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      // Merge unique participants from INITIAL and saved arrays
+      return Array.from(new Set([...INITIAL_PARTICIPANTS, ...parsed]))
+    }
+    return INITIAL_PARTICIPANTS
   })
 
   const [matches, setMatches] = useState(() => {
     const saved = localStorage.getItem('bolao_matches')
     if (saved) {
       const parsed = JSON.parse(saved)
+      
+      // Migration check: if they have less than 10 matches (the old setup), we merge guesses
       if (parsed.length < 10) {
-        return DEFAULT_MATCHES
+        const migrated = DEFAULT_MATCHES.map(dm => {
+          // Find matching game in saved data to preserve guesses
+          const savedGame = parsed.find(sg => 
+            (sg.homeTeam === dm.homeTeam && sg.awayTeam === dm.awayTeam) ||
+            (sg.homeTeam === dm.awayTeam && sg.awayTeam === dm.homeTeam)
+          )
+          if (savedGame) {
+            return {
+              ...dm,
+              // Merge guesses, preserving saved ones
+              guesses: {
+                ...dm.guesses,
+                ...savedGame.guesses
+              },
+              // Preserve manual scores/status if they were edited
+              homeScore: savedGame.homeScore !== null ? savedGame.homeScore : dm.homeScore,
+              awayScore: savedGame.awayScore !== null ? savedGame.awayScore : dm.awayScore,
+              status: savedGame.status || dm.status
+            }
+          }
+          return dm
+        })
+        return migrated
       }
       return parsed
     }
@@ -305,7 +334,6 @@ function App() {
   const syncOfficialScores = async (silent = false) => {
     if (!silent) setSyncStatus('syncing')
     try {
-      // Fetch live openfootball dataset
       const response = await fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json')
       if (!response.ok) throw new Error('Falha de conexão')
       const data = await response.json()
@@ -313,7 +341,6 @@ function App() {
       let updatedCount = 0
       setMatches(prevMatches => {
         const nextMatches = prevMatches.map((localMatch, idx) => {
-          // Look up corresponding match in the API data by index
           const fetchedMatch = data.matches[idx]
           if (fetchedMatch && fetchedMatch.score && fetchedMatch.score.ft) {
             const [ftHome, ftAway] = fetchedMatch.score.ft
@@ -1033,7 +1060,7 @@ function App() {
                 {editingMatch.homeTeam} x {editingMatch.awayTeam}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifycontent: 'space-around', alignItems: 'center', marginBottom: '20px' }}>
                 {/* Home Team Score Selector */}
                 <div className="form-group" style={{ alignItems: 'center' }}>
                   <label>{editingMatch.homeTeam}</label>
