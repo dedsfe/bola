@@ -608,7 +608,7 @@ function App() {
 
     if (ignoreDateLock) {
       return (
-        <span className="match-status-badge pending" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--color-warning)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+        <span className="match-status-badge pending" style={{ background: 'rgba(255, 149, 0, 0.12)', color: 'var(--color-warning)', borderColor: 'rgba(255, 149, 0, 0.22)' }}>
           <Unlock size={12} /> Liberado (Admin)
         </span>
       )
@@ -621,7 +621,7 @@ function App() {
 
     if (hasStarted) {
       return (
-        <span className="match-status-badge pending" style={{ background: 'rgba(239, 68, 68, 0.12)', color: 'var(--color-danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+        <span className="match-status-badge pending" style={{ background: 'rgba(255, 59, 48, 0.12)', color: 'var(--color-danger)', borderColor: 'rgba(255, 59, 48, 0.22)' }}>
           <Lock size={12} /> Encerrado (Começou!)
         </span>
       )
@@ -630,19 +630,19 @@ function App() {
     if (dateStatus === 'open_today') {
       const timeOnly = match.time ? match.time.split(' ')[0] : ''
       return (
-        <span className="match-status-badge pending" style={{ background: 'rgba(16, 185, 129, 0.12)', color: 'var(--color-accent)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+        <span className="match-status-badge pending" style={{ background: 'rgba(52, 199, 89, 0.14)', color: 'var(--color-accent)', borderColor: 'rgba(52, 199, 89, 0.26)' }}>
           <Unlock size={12} /> Aberto (Hoje até {timeOnly})
         </span>
       )
     } else if (dateStatus === 'future') {
       return (
-        <span className="match-status-badge pending" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', borderColor: 'rgba(255, 255, 255, 0.05)' }}>
+        <span className="match-status-badge pending" style={{ background: 'rgba(120, 120, 128, 0.12)', color: 'var(--text-secondary)', borderColor: 'rgba(120, 120, 128, 0.2)' }}>
           <Lock size={12} /> Bloqueado até {formatDate(match.date)}
         </span>
       )
     } else {
       return (
-        <span className="match-status-badge pending" style={{ background: 'rgba(239, 68, 68, 0.12)', color: 'var(--color-danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+        <span className="match-status-badge pending" style={{ background: 'rgba(255, 59, 48, 0.12)', color: 'var(--color-danger)', borderColor: 'rgba(255, 59, 48, 0.22)' }}>
           <Lock size={12} /> Encerrado ({formatDate(match.date)})
         </span>
       )
@@ -682,7 +682,7 @@ function App() {
 
       {/* Alert about Date Lock Restriction */}
       {!ignoreDateLock && activeTab === 'matches' && (
-        <div className="info-pill" style={{ margin: '0 0 16px 0', padding: '10px 14px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.2)', width: '100%', color: 'var(--text-primary)', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+        <div className="info-pill" style={{ margin: '0 0 16px 0', padding: '12px 14px', borderRadius: '14px', background: 'rgba(0, 122, 255, 0.08)', border: '1px solid rgba(0, 122, 255, 0.18)', width: '100%', color: 'var(--text-primary)', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
           <AlertCircle size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }} />
           <span style={{ fontSize: '0.78rem', lineHeight: '1.4' }}>
             <strong>Regra de Bloqueio:</strong> Você só pode palpitar nos jogos de <strong>hoje ({formatDate(todayStr)})</strong> antes do início de cada partida.
@@ -703,12 +703,13 @@ function App() {
               {leaderboard.map((item, idx) => {
                 const rank = idx + 1
                 const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : ''
+                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null
                 const initials = item.name.substring(0, 2).toUpperCase()
 
                 return (
                   <div key={item.name} className={`leaderboard-item ${rankClass}`}>
                     <div className="rank-left">
-                      <div className="rank-number">{rank}</div>
+                      <div className="rank-number">{medal || rank}</div>
                       <div className="user-avatar">{initials}</div>
                       <div className="user-info">
                         <span className="user-name">{item.name}</span>
@@ -908,7 +909,7 @@ function App() {
 
                         {/* Button or Locked Message */}
                         {isFinished ? null : isGuessLocked ? (
-                          <div style={{ textAlign: 'center', padding: '10px 4px', fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'rgba(255, 255, 255, 0.01)', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.03)' }}>
+                          <div style={{ textAlign: 'center', padding: '10px 4px', fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'rgba(120, 120, 128, 0.06)', borderRadius: '10px', border: '1px dashed rgba(120, 120, 128, 0.2)' }}>
                             <Lock size={11} /> Palpites trancados. {hasStarted ? 'A partida já iniciou!' : `Disponível apenas em ${formatDate(match.date)}.`}
                           </div>
                         ) : (
@@ -951,15 +952,15 @@ function App() {
               <div>
                 <h3 style={{ fontSize: '1rem', marginBottom: '8px' }}>Regras de Pontuação</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--fill-secondary)', borderRadius: '10px' }}>
                     <span>🎯 Placar Exato</span>
                     <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>3 pontos</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--fill-secondary)', borderRadius: '10px' }}>
                     <span>✓ Acertar apenas Vencedor/Empate</span>
                     <span style={{ color: 'var(--color-warning)', fontWeight: 'bold' }}>1 ponto</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--fill-secondary)', borderRadius: '10px' }}>
                     <span>✗ Erro completo</span>
                     <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>0 pontos</span>
                   </div>
@@ -985,7 +986,7 @@ function App() {
 
               <div>
                 <h3 style={{ fontSize: '1rem', marginBottom: '8px' }}>Configurações de Segurança</h3>
-                <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255, 255, 255, 0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', background: 'var(--fill-secondary)', padding: '14px', borderRadius: '14px', border: '1px solid var(--card-border)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '80%' }}>
                     <label style={{ margin: 0, fontSize: '0.85rem' }}>Ignorar Trava de Data</label>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: '0' }}>
@@ -1005,7 +1006,7 @@ function App() {
                 <h3 style={{ fontSize: '1rem', marginBottom: '8px' }}>Participantes Cadastrados</h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {participants.map(name => (
-                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: '20px', fontSize: '0.8rem' }}>
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: 'var(--fill-secondary)', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 500 }}>
                       <span>{name}</span>
                       <button 
                         onClick={() => handleDeleteParticipant(name)}
@@ -1018,7 +1019,7 @@ function App() {
                 </div>
               </div>
 
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+              <div style={{ borderTop: '1px solid var(--card-border)', paddingTop: '16px' }}>
                 <button className="btn btn-danger" onClick={handleResetData}>
                   <RefreshCw size={16} />
                   Resetar Todos os Dados
