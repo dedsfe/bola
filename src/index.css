@@ -927,3 +927,12 @@ p {
   color: var(--text-primary);
   box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
 }
+
+/* Spin animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 1s linear infinite;
+}

@@ -167,6 +167,7 @@ const DEFAULT_MATCHES = worldCupData.matches.map((m, index) => {
     awayScore,
     status,
     date: m.date,
+    time: m.time || '',
     group: m.group || '',
     round: m.round || '',
     guesses
@@ -186,7 +187,6 @@ function App() {
     const saved = localStorage.getItem('bolao_matches')
     if (saved) {
       const parsed = JSON.parse(saved)
-      // Migration check: upgrade from old 2-match setup to the full 104-match setup
       if (parsed.length < 10) {
         return DEFAULT_MATCHES
       }
@@ -203,6 +203,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('ranking') // 'ranking' | 'matches' | 'admin'
   const [matchFilter, setMatchFilter] = useState('today') // 'today' | 'pending' | 'finished' | 'all'
   const [expandedMatches, setExpandedMatches] = useState({ '1': true, '2': true })
+  const [syncStatus, setSyncStatus] = useState('idle') // 'idle' | 'syncing' | 'success' | 'error'
 
   // Modals state
   const [editingMatch, setEditingMatch] = useState(null)
@@ -217,7 +218,8 @@ function App() {
     homeFlag: '🇧🇷',
     awayFlag: '🇦🇷',
     status: 'pending',
-    date: new Date().toLocaleDateString('en-CA')
+    date: new Date().toLocaleDateString('en-CA'),
+    time: '12:00 UTC-3'
   })
   const [newParticipantName, setNewParticipantName] = useState('')
   const [newGuessData, setNewGuessData] = useState({
@@ -235,6 +237,11 @@ function App() {
     if (!hasMatchesToday) {
       setMatchFilter('pending')
     }
+  }, [])
+
+  // Auto-sync official scores from GitHub on mount
+  useEffect(() => {
+    syncOfficialScores(true)
   }, [])
 
   // Save changes
@@ -257,6 +264,30 @@ function App() {
     return 'past'
   }
 
+  // Parse date and time with offset to create local Date
+  const getMatchDateTime = (dateStr, timeStr) => {
+    if (!timeStr) return new Date(dateStr + 'T23:59:59')
+    
+    const parts = timeStr.trim().split(/\s+/)
+    const timeVal = parts[0] // "18:00"
+    const tzVal = parts[1] || 'UTC' // "UTC-7"
+    
+    let tzOffset = 'Z'
+    if (tzVal.startsWith('UTC')) {
+      const offsetPart = tzVal.substring(3)
+      if (offsetPart) {
+        const sign = offsetPart.charAt(0)
+        const val = offsetPart.substring(1)
+        let [hours, mins] = val.split(':')
+        if (!mins) mins = '00'
+        const paddedHours = hours.padStart(2, '0')
+        tzOffset = `${sign}${paddedHours}:${mins}`
+      }
+    }
+    
+    return new Date(`${dateStr}T${timeVal}:00${tzOffset}`)
+  }
+
   const formatDate = (dateStr) => {
     if (!dateStr) return ''
     const [year, month, day] = dateStr.split('-')
@@ -268,6 +299,58 @@ function App() {
       ...prev,
       [matchId]: !prev[matchId]
     }))
+  }
+
+  // Sync Official Scores
+  const syncOfficialScores = async (silent = false) => {
+    if (!silent) setSyncStatus('syncing')
+    try {
+      // Fetch live openfootball dataset
+      const response = await fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json')
+      if (!response.ok) throw new Error('Falha de conexão')
+      const data = await response.json()
+      
+      let updatedCount = 0
+      setMatches(prevMatches => {
+        const nextMatches = prevMatches.map((localMatch, idx) => {
+          // Look up corresponding match in the API data by index
+          const fetchedMatch = data.matches[idx]
+          if (fetchedMatch && fetchedMatch.score && fetchedMatch.score.ft) {
+            const [ftHome, ftAway] = fetchedMatch.score.ft
+            const hasChanged = localMatch.homeScore !== ftHome || 
+                               localMatch.awayScore !== ftAway || 
+                               localMatch.status !== 'finished'
+            
+            if (hasChanged) {
+              updatedCount++
+              return {
+                ...localMatch,
+                homeScore: ftHome,
+                awayScore: ftAway,
+                status: 'finished'
+              }
+            }
+          }
+          return localMatch
+        })
+        return nextMatches
+      })
+
+      if (!silent) {
+        setSyncStatus('success')
+        if (updatedCount > 0) {
+          alert(`${updatedCount} jogos foram atualizados com placares oficiais!`)
+        } else {
+          alert('Todos os placares já estão atualizados!')
+        }
+      }
+    } catch (error) {
+      console.error('Erro na sincronização:', error)
+      if (!silent) {
+        setSyncStatus('error')
+        alert('Erro ao sincronizar placares. Verifique sua conexão.')
+      }
+    }
   }
 
   // Scoring logic
@@ -364,6 +447,7 @@ function App() {
       awayScore: newMatchData.status === 'finished' ? 0 : null,
       status: newMatchData.status,
       date: newMatchData.date,
+      time: newMatchData.time || '12:00 UTC-3',
       group: 'Personalizado',
       round: 'Personalizado',
       guesses: {}
@@ -376,7 +460,8 @@ function App() {
       homeFlag: '🇧🇷',
       awayFlag: '🇦🇷',
       status: 'pending',
-      date: todayStr
+      date: todayStr,
+      time: '12:00 UTC-3'
     })
     setAddingMatch(false)
   }
@@ -469,6 +554,59 @@ function App() {
   const countFinished = matches.filter(m => m.status === 'finished').length
   const countAll = matches.length
 
+  // Rendering dynamic badges
+  const renderMatchBadge = (match) => {
+    if (match.status === 'finished') {
+      return (
+        <span className="match-status-badge finished">
+          <Lock size={12} /> Finalizado
+        </span>
+      )
+    }
+
+    if (ignoreDateLock) {
+      return (
+        <span className="match-status-badge pending" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--color-warning)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+          <Unlock size={12} /> Liberado (Admin)
+        </span>
+      )
+    }
+
+    const dateStatus = getMatchDateStatus(match.date)
+    const matchTime = getMatchDateTime(match.date, match.time)
+    const now = new Date()
+    const hasStarted = now >= matchTime
+
+    if (hasStarted) {
+      return (
+        <span className="match-status-badge pending" style={{ background: 'rgba(239, 68, 68, 0.12)', color: 'var(--color-danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+          <Lock size={12} /> Encerrado (Começou!)
+        </span>
+      )
+    }
+
+    if (dateStatus === 'open_today') {
+      const timeOnly = match.time ? match.time.split(' ')[0] : ''
+      return (
+        <span className="match-status-badge pending" style={{ background: 'rgba(16, 185, 129, 0.12)', color: 'var(--color-accent)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+          <Unlock size={12} /> Aberto (Hoje até {timeOnly})
+        </span>
+      )
+    } else if (dateStatus === 'future') {
+      return (
+        <span className="match-status-badge pending" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', borderColor: 'rgba(255, 255, 255, 0.05)' }}>
+          <Lock size={12} /> Bloqueado até {formatDate(match.date)}
+        </span>
+      )
+    } else {
+      return (
+        <span className="match-status-badge pending" style={{ background: 'rgba(239, 68, 68, 0.12)', color: 'var(--color-danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+          <Lock size={12} /> Encerrado ({formatDate(match.date)})
+        </span>
+      )
+    }
+  }
+
   return (
     <>
       {/* Header */}
@@ -505,7 +643,7 @@ function App() {
         <div className="info-pill" style={{ margin: '0 0 16px 0', padding: '10px 14px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.2)', width: '100%', color: 'var(--text-primary)', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
           <AlertCircle size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }} />
           <span style={{ fontSize: '0.78rem', lineHeight: '1.4' }}>
-            <strong>Trava de Data Ativa:</strong> Você só pode palpitar nos jogos que acontecem <strong>hoje ({formatDate(todayStr)})</strong>. Para liberar retroativos, acerte nas configurações.
+            <strong>Regra de Bloqueio:</strong> Você só pode palpitar nos jogos de <strong>hoje ({formatDate(todayStr)})</strong> antes do início de cada partida.
           </span>
         </div>
       )}
@@ -630,47 +768,19 @@ function App() {
               const isFinished = match.status === 'finished'
               const guessCount = Object.keys(match.guesses).length
               const dateStatus = getMatchDateStatus(match.date)
-              const isGuessLocked = !isFinished && !ignoreDateLock && dateStatus !== 'open_today'
+              const matchTime = getMatchDateTime(match.date, match.time)
+              const now = new Date()
+              const hasStarted = now >= matchTime
+              const isGuessLocked = !isFinished && !ignoreDateLock && (dateStatus !== 'open_today' || hasStarted)
 
               return (
                 <div key={match.id} className="glass-card match-card">
                   <div className="match-header">
-                    {isFinished ? (
-                      <span className="match-status-badge finished">
-                        <Lock size={12} /> Finalizado
-                      </span>
-                    ) : (() => {
-                      if (ignoreDateLock) {
-                        return (
-                          <span className="match-status-badge pending" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--color-warning)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
-                            <Unlock size={12} /> Liberado (Admin)
-                          </span>
-                        )
-                      }
-                      if (dateStatus === 'open_today') {
-                        return (
-                          <span className="match-status-badge pending" style={{ background: 'rgba(16, 185, 129, 0.12)', color: 'var(--color-accent)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
-                            <Unlock size={12} /> Aberto (Hoje!)
-                          </span>
-                        )
-                      } else if (dateStatus === 'future') {
-                        return (
-                          <span className="match-status-badge pending" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', borderColor: 'rgba(255, 255, 255, 0.05)' }}>
-                            <Lock size={12} /> Bloqueado até {formatDate(match.date)}
-                          </span>
-                        )
-                      } else {
-                        return (
-                          <span className="match-status-badge pending" style={{ background: 'rgba(239, 68, 68, 0.12)', color: 'var(--color-danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-                            <Lock size={12} /> Encerrado ({formatDate(match.date)})
-                          </span>
-                        )
-                      }
-                    })()}
+                    {renderMatchBadge(match)}
                     
                     <div className="match-actions">
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginRight: '4px' }}>
-                        {match.group} {match.group && '•'} {formatDate(match.date)}
+                        {match.group} {match.group && '•'} {formatDate(match.date)} {match.time && `• ${match.time.split(' ')[0]}`}
                       </span>
                       <button
                         className="match-action-btn"
@@ -757,7 +867,7 @@ function App() {
                         {/* Button or Locked Message */}
                         {isFinished ? null : isGuessLocked ? (
                           <div style={{ textAlign: 'center', padding: '10px 4px', fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'rgba(255, 255, 255, 0.01)', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.03)' }}>
-                            <Lock size={11} /> Palpites bloqueados. Disponível apenas em {formatDate(match.date)}.
+                            <Lock size={11} /> Palpites trancados. {hasStarted ? 'A partida já iniciou!' : `Disponível apenas em ${formatDate(match.date)}.`}
                           </div>
                         ) : (
                           <button
@@ -812,6 +922,23 @@ function App() {
                     <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>0 pontos</span>
                   </div>
                 </div>
+              </div>
+
+              {/* API Score Synchronization */}
+              <div>
+                <h3 style={{ fontSize: '1rem', marginBottom: '8px' }}>Sincronização de Resultados</h3>
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => syncOfficialScores(false)}
+                  disabled={syncStatus === 'syncing'}
+                  style={{ gap: '10px' }}
+                >
+                  <RefreshCw size={16} className={syncStatus === 'syncing' ? 'spin' : ''} />
+                  {syncStatus === 'syncing' ? 'Sincronizando placares...' : 'Sincronizar Placares Oficiais'}
+                </button>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
+                  Baixa os placares oficiais mais recentes diretamente do repositório da Copa de 2026 e encerra as partidas de forma automática.
+                </p>
               </div>
 
               <div>
@@ -1054,15 +1181,28 @@ function App() {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Data da Partida</label>
-                <input
-                  type="date"
-                  className="input-glass"
-                  value={newMatchData.date}
-                  onChange={e => setNewMatchData(prev => ({ ...prev, date: e.target.value }))}
-                  required
-                />
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label>Data da Partida</label>
+                  <input
+                    type="date"
+                    className="input-glass"
+                    value={newMatchData.date}
+                    onChange={e => setNewMatchData(prev => ({ ...prev, date: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Hora de Início</label>
+                  <input
+                    type="text"
+                    className="input-glass"
+                    placeholder="Ex: 13:00 UTC-6"
+                    value={newMatchData.time}
+                    onChange={e => setNewMatchData(prev => ({ ...prev, time: e.target.value }))}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="form-group">
@@ -1147,7 +1287,7 @@ function App() {
                 </select>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '20px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', justifycontent: 'space-around', alignItems: 'center', marginBottom: '20px', marginTop: '10px' }}>
                 {/* Home Guess */}
                 <div className="form-group" style={{ alignItems: 'center' }}>
                   <label>Gols Mandante</label>
