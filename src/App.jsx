@@ -176,52 +176,56 @@ const DEFAULT_MATCHES = worldCupData.matches.map((m, index) => {
 
 const INITIAL_PARTICIPANTS = ['Keila', 'André', 'Luque', 'LJ', 'Sara', 'Matheus', 'Gi', 'Dany']
 
+// Incrementar quando o schema/tabela de jogos mudar, para migrar os dados salvos uma única vez.
+const SCHEMA_VERSION = '2'
+
 function App() {
   // Load settings and merge cleanly
   const [participants, setParticipants] = useState(() => {
     const saved = localStorage.getItem('bolao_participants')
     if (saved) {
-      const parsed = JSON.parse(saved)
-      // Merge unique participants from INITIAL and saved arrays
-      return Array.from(new Set([...INITIAL_PARTICIPANTS, ...parsed]))
+      // A lista salva é a fonte da verdade (respeita remoções); não re-mesclar os padrões
+      return JSON.parse(saved)
     }
     return INITIAL_PARTICIPANTS
   })
 
   const [matches, setMatches] = useState(() => {
     const saved = localStorage.getItem('bolao_matches')
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      
-      // Migration check: if they have less than 10 matches (the old setup), we merge guesses
-      if (parsed.length < 10) {
-        const migrated = DEFAULT_MATCHES.map(dm => {
-          // Find matching game in saved data to preserve guesses
-          const savedGame = parsed.find(sg => 
-            (sg.homeTeam === dm.homeTeam && sg.awayTeam === dm.awayTeam) ||
-            (sg.homeTeam === dm.awayTeam && sg.awayTeam === dm.homeTeam)
-          )
-          if (savedGame) {
-            return {
-              ...dm,
-              // Merge guesses, preserving saved ones
-              guesses: {
-                ...dm.guesses,
-                ...savedGame.guesses
-              },
-              // Preserve manual scores/status if they were edited
-              homeScore: savedGame.homeScore !== null ? savedGame.homeScore : dm.homeScore,
-              awayScore: savedGame.awayScore !== null ? savedGame.awayScore : dm.awayScore,
-              status: savedGame.status || dm.status
-            }
-          }
-          return dm
-        })
-        return migrated
+    if (!saved) return DEFAULT_MATCHES
+
+    const parsed = JSON.parse(saved)
+    const savedVersion = localStorage.getItem('bolao_schema_version')
+
+    // Atualizado: usar os dados salvos como estão (respeita jogos personalizados, remoções e edições)
+    if (savedVersion === SCHEMA_VERSION) return parsed
+
+    // Migração única: reconstrói a partir da tabela oficial mais recente, preservando
+    // os palpites da família, os placares editados à mão e os jogos personalizados criados.
+    const migrated = DEFAULT_MATCHES.map(dm => {
+      const savedGame = parsed.find(sg =>
+        (sg.homeTeam === dm.homeTeam && sg.awayTeam === dm.awayTeam) ||
+        (sg.homeTeam === dm.awayTeam && sg.awayTeam === dm.homeTeam)
+      )
+      if (!savedGame) return dm
+      return {
+        ...dm,
+        guesses: { ...dm.guesses, ...savedGame.guesses },
+        homeScore: savedGame.homeScore !== null ? savedGame.homeScore : dm.homeScore,
+        awayScore: savedGame.awayScore !== null ? savedGame.awayScore : dm.awayScore,
+        status: savedGame.status || dm.status,
+        manualEdit: savedGame.manualEdit || false
       }
-      return parsed
-    }
-    return DEFAULT_MATCHES
+    })
+
+    // Mantém os jogos personalizados que não fazem parte da tabela oficial
+    const customMatches = parsed.filter(sg =>
+      !DEFAULT_MATCHES.some(dm =>
+        (dm.homeTeam === sg.homeTeam && dm.awayTeam === sg.awayTeam) ||
+        (dm.homeTeam === sg.awayTeam && dm.awayTeam === sg.homeTeam)
+      )
+    )
+    return [...customMatches, ...migrated]
   })
 
   const [ignoreDateLock, setIgnoreDateLock] = useState(() => {
@@ -286,6 +290,11 @@ function App() {
     localStorage.setItem('bolao_ignore_date_lock', String(ignoreDateLock))
   }, [ignoreDateLock])
 
+  // Marca a versão atual do schema para a migração única não rodar de novo
+  useEffect(() => {
+    localStorage.setItem('bolao_schema_version', SCHEMA_VERSION)
+  }, [])
+
   // Helper date status
   const getMatchDateStatus = (matchDate) => {
     if (matchDate === todayStr) return 'open_today'
@@ -337,31 +346,35 @@ function App() {
       const response = await fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json')
       if (!response.ok) throw new Error('Falha de conexão')
       const data = await response.json()
-      
-      let updatedCount = 0
-      setMatches(prevMatches => {
-        const nextMatches = prevMatches.map((localMatch, idx) => {
-          const fetchedMatch = data.matches[idx]
-          if (fetchedMatch && fetchedMatch.score && fetchedMatch.score.ft) {
-            const [ftHome, ftAway] = fetchedMatch.score.ft
-            const hasChanged = localMatch.homeScore !== ftHome || 
-                               localMatch.awayScore !== ftAway || 
-                               localMatch.status !== 'finished'
-            
-            if (hasChanged) {
-              updatedCount++
-              return {
-                ...localMatch,
-                homeScore: ftHome,
-                awayScore: ftAway,
-                status: 'finished'
-              }
-            }
-          }
-          return localMatch
-        })
-        return nextMatches
+
+      // Indexa os resultados oficiais por times (traduzidos) + data, em vez de por posição.
+      // Casar por índice quebra assim que um jogo é criado/excluído e desloca o array.
+      const officialByKey = {}
+      data.matches.forEach(r => {
+        if (r.score && r.score.ft) {
+          const tHome = TEAM_TRANSLATIONS[r.team1] || r.team1
+          const tAway = TEAM_TRANSLATIONS[r.team2] || r.team2
+          officialByKey[`${tHome}__${tAway}__${r.date}`] = r.score.ft
+        }
       })
+
+      let updatedCount = 0
+      setMatches(prevMatches => prevMatches.map(localMatch => {
+        // Sync automático (silencioso) não sobrescreve placares editados à mão
+        if (silent && localMatch.manualEdit) return localMatch
+
+        const ft = officialByKey[`${localMatch.homeTeam}__${localMatch.awayTeam}__${localMatch.date}`]
+        if (!ft) return localMatch
+
+        const [ftHome, ftAway] = ft
+        const hasChanged = localMatch.homeScore !== ftHome ||
+                           localMatch.awayScore !== ftAway ||
+                           localMatch.status !== 'finished'
+        if (!hasChanged) return localMatch
+
+        updatedCount++
+        return { ...localMatch, homeScore: ftHome, awayScore: ftAway, status: 'finished' }
+      }))
 
       if (!silent) {
         setSyncStatus('success')
@@ -453,7 +466,9 @@ function App() {
   // Match CRUD
   const handleSaveMatchScore = (e) => {
     e.preventDefault()
-    setMatches(prev => prev.map(m => m.id === editingMatch.id ? editingMatch : m))
+    // Marca como editado manualmente para o sync automático silencioso não sobrescrever
+    const edited = { ...editingMatch, manualEdit: true }
+    setMatches(prev => prev.map(m => m.id === edited.id ? edited : m))
     setEditingMatch(null)
   }
 
@@ -1060,7 +1075,7 @@ function App() {
                 {editingMatch.homeTeam} x {editingMatch.awayTeam}
               </div>
 
-              <div style={{ display: 'flex', justifycontent: 'space-around', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '20px' }}>
                 {/* Home Team Score Selector */}
                 <div className="form-group" style={{ alignItems: 'center' }}>
                   <label>{editingMatch.homeTeam}</label>
@@ -1178,7 +1193,6 @@ function App() {
                     placeholder="Ex: 🇧🇷"
                     value={newMatchData.homeFlag}
                     onChange={e => setNewMatchData(prev => ({ ...prev, homeFlag: e.target.value }))}
-                    maxLength={2}
                   />
                 </div>
               </div>
@@ -1203,7 +1217,6 @@ function App() {
                     placeholder="Ex: 🇦🇷"
                     value={newMatchData.awayFlag}
                     onChange={e => setNewMatchData(prev => ({ ...prev, awayFlag: e.target.value }))}
-                    maxLength={2}
                   />
                 </div>
               </div>
@@ -1314,7 +1327,7 @@ function App() {
                 </select>
               </div>
 
-              <div style={{ display: 'flex', justifycontent: 'space-around', alignItems: 'center', marginBottom: '20px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '20px', marginTop: '10px' }}>
                 {/* Home Guess */}
                 <div className="form-group" style={{ alignItems: 'center' }}>
                   <label>Gols Mandante</label>
